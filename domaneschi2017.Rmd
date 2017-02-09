@@ -1,0 +1,137 @@
+---
+title: "Domaneschi et al. 2017 replication notebook"
+output: html_notebook
+---
+
+```{r}
+library(tidyverse)
+library(magrittr)
+library(haven)
+library(lme4)
+library(lmerTest)
+```
+
+# Preliminaries
+
+Read data
+
+```{r}
+df <- read_csv("expt1_cleaned.csv") 
+```
+
+from XLS file:
++ Response 1 = Causal Option
++ Response 2 = Other Option
++ Response 3 = Decsriptive Option
+
+```{r}
+df %<>% mutate(Response = factor(Response, 
+                                 levels = c(1, 2, 3), 
+                                 labels = c("Causal","Other","Descriptive")))
+```
+
+# Analyses
+
+## Descriptives
+
+> In the Standard condition, our participants chose the causal option 57.77% of the time and the descriptive one 26.66% of the time, while they selected the other option possibility only 15.55% of the time. 
+
+> In the Relevance condition, participants selected the causal inter- pretation 16.66% of the time, and the descriptive one 66.66% of the time, while they chose the other option 16.66% of the time. 
+
+
+```{r}
+df %>%
+  group_by(Condition, Response) %>%
+  summarise(n = n()) %>%
+  mutate(prop = n / sum(n)) %>%
+  knitr::kable(digits = 2)
+```
+
+**Sucess**
+
+## $\chi^2$ tests.
+
+### Standard condition.
+
+```{r}
+ms <- df %>%
+  group_by(Condition, Response) %>%
+  summarise(n = n()) 
+
+standard <- filter(ms, Condition == "Standard")
+```
+
+> The Chi-square statistics confirmed that there was a significant difference between (i) the causal and the descriptive options (v2 (1) = 41.61; p < 0.001); 
+
+```{r}
+chisq.test(filter(standard, Response %in% c("Causal","Descriptive"))$n, 
+           rescale.p=TRUE)
+```
+
+> (ii) the causal and the other option (v2 (1) = 19.96; p < 0.001); 
+
+```{r}
+chisq.test(filter(standard, Response %in% c("Causal","Other"))$n, 
+           rescale.p=TRUE)
+```
+
+> and (iii) the descriptive and the other option (v2 (1) = 4.52; p < 0.05).
+
+
+```{r}
+chisq.test(filter(standard, Response %in% c("Descriptive","Other"))$n, 
+           rescale.p=TRUE)
+```
+
+### Relevance condition.
+
+```{r}
+relevance <- filter(ms, Condition == "Relevance")
+```
+
+> The Chi-square statistics confirmed that, while the difference between the causal interpretation and the other option was not significant (v2 (1) = 1.84; p = n.s.), 
+
+```{r}
+chisq.test(filter(relevance, Response %in% c("Causal","Other"))$n, 
+           rescale.p=TRUE)
+```
+
+**Major discrepancy**: they report $\chi^2 = 1.84$ but by their own descriptives, these are literally identical measurements, so how could they have $\chi^2 > 0$?
+
+> the percentage of choice for the descriptive option was significantly higher than that of the causal option (v2 (1) = 27.7; p < 0.001) 
+
+
+```{r}
+chisq.test(filter(relevance, Response %in% c("Descriptive","Causal"))$n, 
+           rescale.p=TRUE)
+```
+
+> and that of the other option preference (v2 (1) = 27.7; p < 0.001).
+
+
+```{r}
+chisq.test(filter(relevance, Response %in% c("Descriptive","Other"))$n, 
+           rescale.p=TRUE)
+```
+
+## Across conditions.
+
+> The above trend of results was further confirmed in the across- conditions comparison. Statistical analysis was performed with Linear Mixed Models (LMM) using the lme4 package (Bates et al., 2015) and the lmerTest package to extend the lmer model and pro- vide the degrees of freedom and the p-value. The random structure of the model was constructed by using subjects and items as ran- dom factors (Baayen, Davidson, & Bates, 2008), while participants’ responses in the two conditions (i.e., Standard vs. Relevance) con- stituted the fixed structure of the model. The results revealed a sig- nificant effect of condition (t = 2.81, df = 1, p < 0.01), further confirming the reversed pattern of choices between the causal and descriptive option in the two conditions (see Fig. 2). 
+
+Problem: Response is actually a nominal variable with three different options, not clear how this has been coded in the LMM.
+
+Let's try putting these in as a factor and see what comes out. 
+
+```{r}
+mod <- lmer(Response ~ Condition  + (1|`Subject_ID`) + (1|`Item_ID`), 
+     data = df)
+
+summary(mod)
+```
+
+```{r}
+mod <- lmer(as.numeric(Response) ~ Condition  + (1|Subject_ID) + (1|Item_ID), 
+     data = df)
+
+summary(mod)
+```
